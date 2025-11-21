@@ -6,22 +6,84 @@
     <title>Code Analysis | Infera</title>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; margin: 40px; }
-        h1 { color: #333; }
-        #erdContainer { margin-top: 20px; }
-        pre.mermaid { background-color: #f4f4f4; padding: 10px; border: 1px solid #ddd; white-space: pre-wrap; }
-        #fileTree { margin-top: 20px; background-color: #fafafa; padding: 10px; border: 1px solid #ccc; overflow-x: auto; }
-        img { margin-top: 20px; max-width: 700px; display: block; }
+        /* Reset & General Styling */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f9;
+            display: flex;
+            justify-content: center;
+            padding: 40px 20px;
+        }
+
+        .container {
+            background-color: #ffffff;
+            padding: 30px 25px;
+            border-radius: 14px;
+            box-shadow: 0 6px 25px rgba(0,0,0,0.08);
+            max-width: 900px;
+            width: 100%;
+        }
+
+        h1, h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        h1::after, h2::after {
+            content: '';
+            display: block;
+            height: 3px;
+            width: 50px;
+            background-color: #3498db;
+            margin: 8px 0 20px 0;
+            border-radius: 2px;
+        }
+
+        /* Mermaid diagram */
+        pre.mermaid {
+            background-color: #ecf0f1;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #dcdcdc;
+            overflow-x: auto;
+        }
+
+        /* File/Folder tree */
+        #fileTree {
+            background-color: #f9fafb;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #dcdcdc;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        /* Optional responsiveness */
+        @media (max-width: 600px) {
+            pre.mermaid, #fileTree {
+                padding: 15px;
+            }
+        }
     </style>
 </head>
 <body>
-    <h1>Code Structure Analysis</h1>
-    <div id="erdContainer">
+    <div class="container">
+        <h1>Code Structure Analysis</h1>
         <pre class="mermaid" id="erdDiagram">Loading diagram...</pre>
-    </div>
 
-    <h2>File/Folder Structure</h2>
-    <pre id="fileTree">Loading file tree...</pre>
+        <h2>File/Folder Structure</h2>
+        <pre id="fileTree">Loading file tree...</pre>
+    </div>
 
     <script>
         mermaid.initialize({ startOnLoad: false, theme: 'base', flowchart: { curve: 'linear' } });
@@ -55,7 +117,7 @@
                 if (data.status === 'success') {
                     // Render Mermaid diagram
                     if (data.erd_path || data.structure) {
-                        const mermaidCode = data.erd_path || data.structure; // backend returns mermaid string
+                        const mermaidCode = data.erd_path || data.structure;
                         erdPre.textContent = mermaidCode;
                         mermaid.init({ startOnLoad: false }, erdPre);
                     } else {

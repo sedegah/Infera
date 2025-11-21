@@ -5,114 +5,126 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Upload Codebase | Infera</title>
     <style>
-        /* General Styling */
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        /* Reset & General Styling */
+        * {
+            box-sizing: border-box;
             margin: 0;
             padding: 0;
-            background-color: #f4f7f9; /* Light background for the page */
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f9;
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
         }
 
-        /* Container for the main content */
+        /* Container */
         .container {
             background-color: #ffffff;
-            padding: 40px;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-            max-width: 500px;
+            padding: 40px 30px;
+            border-radius: 14px;
+            box-shadow: 0 6px 25px rgba(0,0,0,0.08);
+            max-width: 480px;
             width: 90%;
             text-align: center;
+            transition: transform 0.2s;
         }
 
-        /* Header Styling */
+        .container:hover {
+            transform: translateY(-3px);
+        }
+
+        /* Header */
         h1 {
-            color: #2c3e50; /* Darker, professional color */
+            font-size: 1.8rem;
+            color: #2c3e50;
             margin-bottom: 30px;
-            font-size: 1.8em;
-            border-bottom: 2px solid #3498db; /* Blue accent line */
-            padding-bottom: 10px;
+            position: relative;
             display: inline-block;
         }
 
-        /* Form Styling */
+        h1::after {
+            content: '';
+            display: block;
+            height: 3px;
+            width: 60%;
+            background-color: #3498db;
+            margin: 8px auto 0;
+            border-radius: 2px;
+        }
+
+        /* Form */
         form {
             display: flex;
             flex-direction: column;
-            align-items: center;
             gap: 20px;
-            margin-bottom: 20px;
-            border: 2px dashed #bdc3c7; /* Dashed border for visual appeal */
-            padding: 30px;
-            border-radius: 8px;
-            transition: border-color 0.3s;
+            padding: 25px;
+            border: 2px dashed #bdc3c7;
+            border-radius: 10px;
+            transition: border-color 0.3s, background-color 0.3s;
         }
 
         form:hover {
-            border-color: #3498db; /* Blue on hover */
+            border-color: #3498db;
+            background-color: #f0f4f8;
         }
 
-        /* File Input Styling (Making it a block element for better control) */
         input[type="file"] {
-            padding: 10px;
+            padding: 12px;
+            border-radius: 8px;
             border: 1px solid #ccc;
-            border-radius: 6px;
-            width: 100%; /* Take full width of the container */
-            box-sizing: border-box;
             background-color: #ecf0f1;
+            cursor: pointer;
+            width: 100%;
         }
 
-        /* Button Styling */
-        button[type="submit"] {
-            background-color: #3498db; /* Primary blue color */
-            color: white;
-            padding: 12px 25px;
+        input[type="file"]::file-selector-button {
+            padding: 8px 15px;
+            margin-right: 10px;
             border: none;
             border-radius: 6px;
+            background-color: #3498db;
+            color: white;
             cursor: pointer;
-            font-size: 1em;
+            transition: background-color 0.3s;
+        }
+
+        input[type="file"]::file-selector-button:hover {
+            background-color: #2980b9;
+        }
+
+        button[type="submit"] {
+            background-color: #3498db;
+            color: white;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
             transition: background-color 0.3s, transform 0.2s;
-            width: 100%;
-            max-width: 200px; /* Limit button width */
         }
 
         button[type="submit"]:hover {
-            background-color: #2980b9; /* Darker blue on hover */
+            background-color: #2980b9;
             transform: translateY(-2px);
         }
 
-        /* Response Area Styling */
+        /* Response area */
         #response {
             margin-top: 25px;
             text-align: left;
             padding: 15px;
-            border: 1px solid #dcdcdc;
-            border-radius: 6px;
-            min-height: 40px; /* Ensure it has space even when empty */
+            border-radius: 8px;
             background-color: #ecf0f1;
-        }
-
-        #response pre {
-            margin: 0;
-            padding: 0;
-            white-space: pre-wrap;
+            min-height: 40px;
+            font-size: 0.95rem;
+            color: #c0392b;
+            overflow-wrap: break-word;
             word-wrap: break-word;
-            color: #c0392b; /* Red color for error messages */
-        }
-
-        /* Link Styling (for future use/standardization, though no links in the core content) */
-        a {
-            color: #3498db;
-            text-decoration: none;
-            transition: color 0.3s;
-        }
-
-        a:hover {
-            color: #2980b9;
-            text-decoration: underline;
         }
     </style>
 </head>
@@ -123,7 +135,6 @@
             <input type="file" name="file" accept=".zip" required>
             <button type="submit">Upload</button>
         </form>
-
         <div id="response"></div>
     </div>
 
@@ -136,15 +147,14 @@
             const formData = new FormData(form);
 
             try {
-                // IMPORTANT: The API path '/analyzer/api/upload/' is retained as per the original script.
                 const res = await fetch('/analyzer/api/upload/', {
                     method: 'POST',
                     body: formData
                 });
+
                 const data = await res.json();
 
-                if(data.status === 'success'){
-                    // IMPORTANT: The redirection functionality is retained.
+                if (data.status === 'success') {
                     window.location.href = `/analyzer/analyze/?file_id=${data.file_id}`;
                 } else {
                     responseDiv.innerHTML = `<pre>Error: ${data.message}</pre>`;
