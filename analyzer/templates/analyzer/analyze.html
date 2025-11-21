@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Code Analysis | Infera</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        h1 { color: #333; }
+        #erdContainer { margin-top: 20px; }
+        pre.mermaid { background-color: #f4f4f4; padding: 10px; border: 1px solid #ddd; white-space: pre-wrap; }
+        #fileTree { margin-top: 20px; background-color: #fafafa; padding: 10px; border: 1px solid #ccc; overflow-x: auto; }
+        img { margin-top: 20px; max-width: 700px; display: block; }
+    </style>
+</head>
+<body>
+    <h1>Code Structure Analysis</h1>
+    <div id="erdContainer">
+        <pre class="mermaid" id="erdDiagram">Loading diagram...</pre>
+    </div>
+
+    <h2>File/Folder Structure</h2>
+    <pre id="fileTree">Loading file tree...</pre>
+
+    <script>
+        mermaid.initialize({ startOnLoad: false, theme: 'base', flowchart: { curve: 'linear' } });
+
+        async function fetchAnalysis() {
+            const params = new URLSearchParams(window.location.search);
+            const file_id = params.get('file_id');
+            const erdPre = document.getElementById('erdDiagram');
+            const treePre = document.getElementById('fileTree');
+
+            if (!file_id) {
+                erdPre.textContent = 'Error: file_id is required in the URL';
+                treePre.textContent = '';
+                return;
+            }
+
+            try {
+                const res = await fetch(`/analyzer/api/analyze/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `file_id=${file_id}`
+                });
+
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(`Server returned ${res.status}: ${text}`);
+                }
+
+                const data = await res.json();
+
+                if (data.status === 'success') {
+                    // Render Mermaid diagram
+                    if (data.erd_path || data.structure) {
+                        const mermaidCode = data.erd_path || data.structure; // backend returns mermaid string
+                        erdPre.textContent = mermaidCode;
+                        mermaid.init({ startOnLoad: false }, erdPre);
+                    } else {
+                        erdPre.textContent = 'No valid Mermaid diagram found';
+                    }
+
+                    // Render JSON file tree
+                    if (data.structure) {
+                        treePre.textContent = JSON.stringify(data.structure, null, 2);
+                    } else {
+                        treePre.textContent = 'No file structure found';
+                    }
+
+                } else {
+                    erdPre.textContent = `Error: ${data.message}`;
+                    treePre.textContent = '';
+                }
+
+            } catch (err) {
+                erdPre.textContent = `Request failed: ${err}`;
+                treePre.textContent = '';
+            }
+        }
+
+        fetchAnalysis();
+    </script>
+</body>
+</html>

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infera - Code Analyzer</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        h1 { color: #333; }
+        form { margin-bottom: 20px; }
+        pre { background-color: #f4f4f4; padding: 10px; border: 1px solid #ddd; white-space: pre-wrap; word-wrap: break-word; }
+        img { max-width: 500px; margin-top: 10px; display: block; }
+        #result { margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Infera - Codebase Analyzer</h1>
+
+    <h2>Upload your codebase (.zip)</h2>
+    <form id="uploadForm" enctype="multipart/form-data">
+        <input type="file" name="file" id="fileInput" required>
+        <button type="submit">Upload</button>
+    </form>
+
+    <h2>Analyze Uploaded Code</h2>
+    <form id="analyzeForm">
+        <input type="number" name="file_id" id="fileIdInput" placeholder="Enter file ID" required>
+        <button type="submit">Analyze</button>
+    </form>
+
+    <h2>Result</h2>
+    <div id="result"></div>
+
+    <script>
+        const uploadForm = document.getElementById('uploadForm');
+        const analyzeForm = document.getElementById('analyzeForm');
+        const resultDiv = document.getElementById('result');
+
+        // Upload handler
+        uploadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fileInput = document.getElementById('fileInput');
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            try {
+                const res = await fetch('/api/upload/', {  // <-- Updated path
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                resultDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (err) {
+                resultDiv.innerHTML = `<pre>Error: ${err}</pre>`;
+            }
+        });
+
+        // Analyze handler
+        analyzeForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fileId = document.getElementById('fileIdInput').value;
+            const formData = new FormData();
+            formData.append('file_id', fileId);
+
+            try {
+                const res = await fetch('/api/analyze/', {  // <-- Updated path
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+
+                let html = `<pre>${JSON.stringify(data.structure, null, 2)}</pre>`;
+                if (data.erd_path) {
+                    // Ensure ERD path is served via MEDIA_URL
+                    html += `<h3>ERD:</h3><img src="${data.erd_path}" alt="ERD">`;
+                }
+                resultDiv.innerHTML = html;
+            } catch (err) {
+                resultDiv.innerHTML = `<pre>Error: ${err}</pre>`;
+            }
+        });
+    </script>
+</body>
+</html>
