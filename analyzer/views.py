@@ -50,7 +50,6 @@ def upload_code(request: HttpRequest) -> JsonResponse:
             for chunk in uploaded_file.chunks():
                 f.write(chunk)
 
-        # Save record to DB
         record = UploadedCode.objects.create(
             file_name=uploaded_file.name,
             file_path=file_path
