@@ -1,108 +1,152 @@
+import ast
 import os
-import zipfile
-import tempfile
-from typing import Tuple, Dict, List
-import re
 import shutil
+import tempfile
+import zipfile
+from pathlib import Path
+from typing import Dict, List, Set, Tuple
+
+
+class UnsafeZipArchiveError(ValueError):
+    """Raised when a zip archive contains unsafe member paths."""
+
 
 def parse_codebase(zip_path: str) -> Tuple[Dict, str]:
     """
     Parses a zipped codebase and returns:
     1. Full folder structure
-    2. Detailed Mermaid class diagram including:
-       - classes
-       - methods
-       - attributes
-       - module-level functions
-       - packages
+    2. Mermaid class diagram (classes, inheritance, methods, attributes, module functions)
     """
     if not os.path.exists(zip_path):
         raise FileNotFoundError(f"Zip file not found: {zip_path}")
 
     tmp_dir = tempfile.mkdtemp(prefix="infera_")
     try:
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(tmp_dir)
-
+        extract_zip_safely(zip_path, tmp_dir)
         structure = scan_dir(tmp_dir)
         mermaid_erd = generate_mermaid_erd(tmp_dir)
-
         return structure, mermaid_erd
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
+
+def extract_zip_safely(zip_path: str, destination: str) -> None:
+    """Extract zip contents while blocking Zip Slip style path traversal."""
+    destination_path = Path(destination).resolve()
+    with zipfile.ZipFile(zip_path, "r") as zip_ref:
+        for member in zip_ref.infolist():
+            member_path = (destination_path / member.filename).resolve()
+            if destination_path not in member_path.parents and member_path != destination_path:
+                raise UnsafeZipArchiveError(f"Unsafe path in zip file: {member.filename}")
+        zip_ref.extractall(destination_path)
+
+
 def scan_dir(path: str) -> Dict:
-    tree = {}
-    for entry in os.scandir(path):
+    tree: Dict = {}
+    entries = sorted(os.scandir(path), key=lambda entry: (not entry.is_dir(), entry.name.lower()))
+    for entry in entries:
         if entry.is_dir():
             tree[entry.name] = scan_dir(entry.path)
         else:
             tree[entry.name] = None
     return tree
 
+
 def generate_mermaid_erd(path: str) -> str:
-    """
-    Generates Mermaid class diagram with classes, inheritance, methods, attributes,
-    module-level functions, and package structure.
-    """
-    class_pattern = re.compile(r'class\s+(\w+)(?:\((\w+)\))?:')
-    method_pattern = re.compile(r'^\s+def\s+(\w+)\s*\(')
-    attr_pattern = re.compile(r'^\s+self\.(\w+)\s*=')
-    func_pattern = re.compile(r'^def\s+(\w+)\s*\(')
-
-    classes: Dict[str, Dict] = {}
+    """Generate Mermaid classDiagram text for Python files in a directory."""
+    classes: Dict[str, Dict[str, Set[str]]] = {}
     relationships: List[Tuple[str, str]] = []
-    module_functions: Dict[str, List[str]] = {}
+    module_functions: Dict[str, Set[str]] = {}
 
-    for root, dirs, files in os.walk(path):
+    for root, _, files in os.walk(path):
         rel_root = os.path.relpath(root, path).replace("\\", "/")
-        module_functions[rel_root] = []
-        for file in files:
-            if file.endswith(".py"):
-                file_path = os.path.join(root, file)
-                current_class = None
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    for line in f:
-                        line_strip = line.strip()
-                        class_match = class_pattern.match(line_strip)
-                        if class_match:
-                            cls_name = class_match.group(1)
-                            parent = class_match.group(2)
-                            current_class = cls_name
-                            classes[cls_name] = {"methods": [], "attributes": [], "file": os.path.relpath(file_path, path)}
-                            if parent:
-                                relationships.append((parent, cls_name))
-                        elif current_class:
-                            method_match = method_pattern.match(line)
-                            if method_match:
-                                classes[current_class]["methods"].append(method_match.group(1))
-                            attr_match = attr_pattern.match(line)
-                            if attr_match:
-                                classes[current_class]["attributes"].append(attr_match.group(1))
-                        else:
-                            func_match = func_pattern.match(line_strip)
-                            if func_match:
-                                module_functions[rel_root].append(func_match.group(1))
+        module_functions.setdefault(rel_root, set())
+        for file_name in sorted(files):
+            if not file_name.endswith(".py"):
+                continue
 
-    # Build Mermaid diagram
+            file_path = os.path.join(root, file_name)
+            parsed = parse_python_file(file_path)
+            for class_name, data in parsed["classes"].items():
+                if class_name not in classes:
+                    classes[class_name] = {"methods": set(), "attributes": set()}
+                classes[class_name]["methods"].update(data["methods"])
+                classes[class_name]["attributes"].update(data["attributes"])
+
+            relationships.extend(parsed["relationships"])
+            module_functions[rel_root].update(parsed["module_functions"])
+
     lines = ["classDiagram"]
-    for cls, info in classes.items():
-        members = []
-        if info["attributes"]:
-            members.extend(info["attributes"])
-        if info["methods"]:
-            members.extend(info["methods"])
+    for class_name in sorted(classes):
+        members = sorted(classes[class_name]["attributes"]) + sorted(classes[class_name]["methods"])
         if members:
-            lines.append(f'    class {cls} {{ {"\\n".join(members)} }}')
+            member_block = "\\n".join(members)
+            lines.append(f"    class {class_name} {{ {member_block} }}")
         else:
-            lines.append(f'    class {cls}')
-    for parent, child in relationships:
-        lines.append(f'    {parent} <|-- {child}')
+            lines.append(f"    class {class_name}")
 
-    # Optional: show module-level functions as separate classes
-    for mod, funcs in module_functions.items():
+    for parent, child in sorted(set(relationships)):
+        lines.append(f"    {parent} <|-- {child}")
+
+    for module_name in sorted(module_functions):
+        funcs = sorted(module_functions[module_name])
         if funcs:
-            mod_class_name = mod.replace("/", "_") + "_module"
-            lines.append(f'    class {mod_class_name} {{ {"\\n".join(funcs)} }}')
+            module_class_name = "root" if module_name == "." else module_name.replace("/", "_")
+            module_class_name = f"{module_class_name}_module"
+            function_block = "\\n".join(funcs)
+            lines.append(f"    class {module_class_name} {{ {function_block} }}")
 
     return "\n".join(lines)
+
+
+def parse_python_file(file_path: str) -> Dict[str, object]:
+    """Parse a Python file using AST and return class/module metadata."""
+    try:
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as source_file:
+            tree = ast.parse(source_file.read())
+    except SyntaxError:
+        return {"classes": {}, "relationships": [], "module_functions": set()}
+
+    classes: Dict[str, Dict[str, Set[str]]] = {}
+    relationships: List[Tuple[str, str]] = []
+    module_functions: Set[str] = set()
+
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef):
+            class_name = node.name
+            classes[class_name] = {"methods": set(), "attributes": set()}
+
+            for base in node.bases:
+                if isinstance(base, ast.Name):
+                    relationships.append((base.id, class_name))
+                elif isinstance(base, ast.Attribute):
+                    relationships.append((base.attr, class_name))
+
+            for class_item in node.body:
+                if isinstance(class_item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    classes[class_name]["methods"].add(class_item.name)
+                    for statement in ast.walk(class_item):
+                        if isinstance(statement, ast.Assign):
+                            for target in statement.targets:
+                                attribute = extract_self_attribute(target)
+                                if attribute:
+                                    classes[class_name]["attributes"].add(attribute)
+                        elif isinstance(statement, ast.AnnAssign):
+                            attribute = extract_self_attribute(statement.target)
+                            if attribute:
+                                classes[class_name]["attributes"].add(attribute)
+
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            module_functions.add(node.name)
+
+    return {
+        "classes": classes,
+        "relationships": relationships,
+        "module_functions": module_functions,
+    }
+
+
+def extract_self_attribute(node: ast.AST) -> str | None:
+    if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "self":
+        return node.attr
+    return None
